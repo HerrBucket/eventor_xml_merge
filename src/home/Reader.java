@@ -12,25 +12,41 @@ import javax.xml.transform.stream.StreamResult;
 
 import org.w3c.dom.*;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.nio.file.Files;
-import java.nio.file.InvalidPathException;
-import java.nio.file.Paths;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class Reader {
     public Reader() {}
 
+    public List<String> loadSIList(File siList) {
+        List<String> out = new ArrayList<>();
+        try {
+            Scanner sc = new Scanner(siList);
+            while (sc.hasNextLine()) {
+                String line = sc.nextLine();
+                out.add(line);
+            }
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        return out;
+    }
+
     public Map<String, String> loadSIMapping(String path) {
+        File mapFile = Paths.get(path).toFile();
+        return loadSIMapping(mapFile);
+    }
+    public Map<String, String> loadSIMapping(File mapFile) {
         Map<String, String> map = new HashMap<>();
         try {
-            File mapFile = Paths.get(path).toFile();
             Scanner sc = new Scanner(mapFile);
             while (sc.hasNextLine()) {
                 String line = sc.nextLine();
-                String id = line.split(",")[0];
-                String si = line.split(",")[1];
+                String id = line.split(":")[0];
+                String si = line.split(":")[1];
                 map.put(id, si);
             }
         } catch (FileNotFoundException e) {
@@ -40,11 +56,36 @@ public class Reader {
         return map;
     }
 
+    public List<String> getCompetitorList(File xml) {
+        List<String> out = new ArrayList<>();
+
+        Document doc = parse(xml);
+        Node root = doc.getElementsByTagName("EntryList").item(0);
+        List<Node> personEntries = findChildren(root, "PersonEntry");
+        personEntries.stream().forEach(n -> {
+            Node person = findChildren(n, "Person").stream().findFirst().orElse(null);
+            Node idNode = findChildren(person, "Id").stream().findFirst().orElse(null);
+            if(idNode != null && !idNode.getTextContent().isEmpty()) {
+                out.add(idNode.getTextContent());
+            }
+        });
+
+        return out;
+    }
+
     public Document parse(String filepath) {
         try {
             // Specify the file path as a File object
             File xmlFile = Paths.get(filepath).toFile();
+            return parse(xmlFile);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
 
+    public Document parse(File xmlFile) {
+        try {
             // Create a DocumentBuilder
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             DocumentBuilder builder = factory.newDocumentBuilder();
@@ -94,16 +135,34 @@ public class Reader {
     public void writeOutXml(Document xmlDoc) {
         writeOutXml(xmlDoc, "new.xml");
     }
-    public void writeOutXml(Document xmldoc, String path) {
+    public void writeOutXml(Document xmlDoc, String path) {
         try {
+            if(!path.endsWith(".xml"))
+                path += ".xml";
             TransformerFactory transformerFactory = TransformerFactory.newInstance();
             Transformer transformer = transformerFactory.newTransformer();
-            DOMSource source = new DOMSource(xmldoc);
+            DOMSource source = new DOMSource(xmlDoc);
             StreamResult result = new StreamResult(new File(path));
             transformer.transform(source, result);
         } catch (TransformerConfigurationException e) {
             e.printStackTrace();
         } catch (TransformerException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void writeMappingFile(Map<String, String> map, String path) {
+        if(!path.endsWith(".txt"))
+            path += ".txt";
+        Path filePath = Paths.get(path);
+        try {
+            Files.deleteIfExists(filePath);
+            Files.createFile(filePath);
+            List<String> list = map.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.toList());
+            for (String str : list) {
+                Files.writeString(filePath, str + System.lineSeparator(), StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+            }
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
