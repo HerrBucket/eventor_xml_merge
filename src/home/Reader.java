@@ -1,0 +1,162 @@
+package home;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerConfigurationException;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+import org.w3c.dom.*;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Paths;
+import java.util.*;
+
+public class Reader {
+    public Reader() {}
+
+    public Map<String, String> loadSIMapping(String path) {
+        Map<String, String> map = new HashMap<>();
+        try {
+            File mapFile = Paths.get(path).toFile();
+            Scanner sc = new Scanner(mapFile);
+            while (sc.hasNextLine()) {
+                String line = sc.nextLine();
+                String id = line.split(",")[0];
+                String si = line.split(",")[1];
+                map.put(id, si);
+            }
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        return map;
+    }
+
+    public Document parse(String filepath) {
+        try {
+            // Specify the file path as a File object
+            File xmlFile = Paths.get(filepath).toFile();
+
+            // Create a DocumentBuilder
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder builder = factory.newDocumentBuilder();
+
+            // Parse the XML file
+            Document document = builder.parse(xmlFile);
+
+            return document;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    public Document createNewDocument(Document from) throws ParserConfigurationException {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder builder = factory.newDocumentBuilder();
+
+        Document newDoc = builder.newDocument();
+        Element root = newDoc.createElement("EntryList");
+        NamedNodeMap map = from.getFirstChild().getAttributes();
+        for(int i = 0; i < map.getLength(); i++) {
+            Node n = map.item(i);
+            root.setAttribute(n.getNodeName(), n.getNodeValue());
+        }
+        newDoc.appendChild(root);
+
+        copyContent(from.getElementsByTagName("EntryList").item(0).getChildNodes(), root, newDoc, true);
+
+        return newDoc;
+    }
+
+    public void copyDocumentData(Document from, Document to, boolean copyall) throws ParserConfigurationException {
+
+        copyContent(from.getElementsByTagName("EntryList").item(0).getChildNodes(), to.getFirstChild(), to, copyall);
+
+    }
+
+    public static boolean isValidPath(String path) {
+        try {
+            return Paths.get(path).toFile().exists();
+        } catch (InvalidPathException | NullPointerException ex) {
+            return false;
+        }
+    }
+
+    public void writeOutXml(Document xmlDoc) {
+        writeOutXml(xmlDoc, "new.xml");
+    }
+    public void writeOutXml(Document xmldoc, String path) {
+        try {
+            TransformerFactory transformerFactory = TransformerFactory.newInstance();
+            Transformer transformer = transformerFactory.newTransformer();
+            DOMSource source = new DOMSource(xmldoc);
+            StreamResult result = new StreamResult(new File(path));
+            transformer.transform(source, result);
+        } catch (TransformerConfigurationException e) {
+            e.printStackTrace();
+        } catch (TransformerException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void copyContent(NodeList list, Node root, Document newXml, boolean copyEvent) {
+        for (int i = 0; i < list.getLength(); i++) {
+            Node node = list.item(i);
+
+            if(copyEvent) {
+                if(node.getNodeType() == Node.ELEMENT_NODE && (node.getNodeName() == "Event")) {
+                    Node newNode = node.cloneNode(true);
+                    newXml.adoptNode(newNode);
+                    root.appendChild(newNode);
+                }
+            } else if(node.getNodeType() == Node.ELEMENT_NODE && (node.getNodeName() == "PersonEntry")) {
+                Node newNode = node.cloneNode(true);
+                newXml.adoptNode(newNode);
+                root.appendChild(newNode);
+            }
+        }
+    }
+
+    private List<Node> findChildren(Node root, String name) {
+        List<Node> out = new ArrayList<>();
+        if(root != null) {
+            NodeList children = root.getChildNodes();
+            for (int i = 0; i < children.getLength(); i++) {
+                Node n = children.item(i);
+                if (n.getNodeType() == Node.ELEMENT_NODE && n.getNodeName().equals(name))
+                    out.add(n);
+            }
+        }
+        return out;
+    }
+
+    public Document updateSINumbers(Document doc, Map<String, String> map) {
+        map.forEach((k,v) -> {
+            System.out.println(k + " : " + v);
+            Node root = doc.getElementsByTagName("EntryList").item(0);
+            List<Node> personEntries = findChildren(root, "PersonEntry");
+            personEntries.stream().forEach(n -> {
+                Node person = findChildren(n, "Person").stream().findFirst().orElse(null);
+                Node id = findChildren(person, "Id").stream().findFirst().orElse(null);
+                if(id != null && id.getTextContent().equals(k)) {
+                    System.out.println("Updating id " + id.getTextContent());
+                    Node card = findChildren(n, "ControlCard").stream().findFirst().orElse(null);
+                    Element newCard = doc.createElement("ControlCard");
+                    newCard.setAttribute("punchingSystem", "SI");
+                    newCard.setTextContent(v);
+                    n.insertBefore(newCard, card);
+                }
+            });
+        });
+        return doc;
+    }
+}
