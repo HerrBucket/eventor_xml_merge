@@ -113,14 +113,14 @@ public class Reader {
         }
         newDoc.appendChild(root);
 
-        copyContent(from.getElementsByTagName("EntryList").item(0).getChildNodes(), root, newDoc, true);
+        copyContent(from.getElementsByTagName("EntryList").item(0).getChildNodes(), root, newDoc, true, false);
 
         return newDoc;
     }
 
-    public void copyDocumentData(Document from, Document to, boolean copyall) throws ParserConfigurationException {
+    public void copyDocumentData(Document from, Document to, boolean copyall, boolean isRelay) throws ParserConfigurationException {
 
-        copyContent(from.getElementsByTagName("EntryList").item(0).getChildNodes(), to.getFirstChild(), to, copyall);
+        copyContent(from.getElementsByTagName("EntryList").item(0).getChildNodes(), to.getFirstChild(), to, copyall, isRelay);
 
     }
 
@@ -167,7 +167,7 @@ public class Reader {
         }
     }
 
-    private void copyContent(NodeList list, Node root, Document newXml, boolean copyEvent) {
+    private void copyContent(NodeList list, Node root, Document newXml, boolean copyEvent, boolean isRelay) {
         for (int i = 0; i < list.getLength(); i++) {
             Node node = list.item(i);
 
@@ -177,6 +177,10 @@ public class Reader {
                     newXml.adoptNode(newNode);
                     root.appendChild(newNode);
                 }
+            } else if(isRelay && node.getNodeType() == Node.ELEMENT_NODE && (node.getNodeName() == "TeamEntry")) {
+                Node newNode = node.cloneNode(true);
+                newXml.adoptNode(newNode);
+                root.appendChild(newNode);
             } else if(node.getNodeType() == Node.ELEMENT_NODE && (node.getNodeName() == "PersonEntry")) {
                 Node newNode = node.cloneNode(true);
                 newXml.adoptNode(newNode);

@@ -57,6 +57,7 @@ public class CommandHandler {
         wrapper.setVisible(true);
 
         JFileChooser chooser = new JFileChooser();
+        chooser.setCurrentDirectory(new File("./"));
         chooser.setMultiSelectionEnabled(true);
         chooser.showOpenDialog(wrapper);
 
@@ -73,6 +74,7 @@ public class CommandHandler {
         wrapper.setVisible(true);
 
         JFileChooser chooser = new JFileChooser();
+        chooser.setCurrentDirectory(new File("./"));
         chooser.setMultiSelectionEnabled(false);
         chooser.showOpenDialog(wrapper);
 
@@ -94,9 +96,12 @@ public class CommandHandler {
             List<Document> docs = files.stream().peek(f -> System.out.println("\t"+f.getName())).map(f -> reader.parse(f)).collect(Collectors.toList());
             final Document out = reader.createNewDocument(docs.get(0));
 
+            System.out.println("Is this relay");
+            Boolean relay = "yes".equalsIgnoreCase(input.nextLine());
+
             docs.stream().forEach(d -> {
                 try {
-                    reader.copyDocumentData(d, out, false);
+                    reader.copyDocumentData(d, out, false, relay);
                 } catch (ParserConfigurationException e) {
                     e.printStackTrace();
                 }
